@@ -1,24 +1,25 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { ChangeEvent, useState } from "react";
+import "./App.css"
+import Graph, { Mode } from './Components/Graph';
 
 function App() {
+
+  const [select, setSelect] = useState("delete")
+
+  const handleSelectChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    setSelect(e.target.value)
+  }
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    <div style={{ padding: "1rem" }}>
+      <div className="Container" >
+        <Graph mode={select as Mode} />
+      </div>
+      <select value={select} onChange={handleSelectChange}>
+        <option value="delete">Delete</option>
+        <option value="connect">Connect</option>
+        <option value="signal">Signal</option>
+      </select>
     </div>
   );
 }
