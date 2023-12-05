@@ -1,5 +1,5 @@
 
-import { DragEvent, MouseEvent, useState } from 'react';
+import { DragEvent, MouseEvent, useRef, useState } from 'react';
 import GraphNode from '../GraphNode';
 import "./styles.css"
 
@@ -24,16 +24,50 @@ export type Mode = 'delete' | 'connect' | 'signal'
 const Graph = ({ mode = 'delete' }: IProps) => {
 
   const [positions, setPositions] = useState<Position[]>([])
+  const [connections, setConnections] = useState<Connection[]>([])
   const [connectingNode, setConnectingNode] = useState<number | null>(null)
   const [firingNodes, setFiringNodes] = useState<number[]>([])
-  const [connections, setConnections] = useState<Connection[]>([])
-  const [idCounter, setIdCounter] = useState(0)
+  const idCounter = useRef(0)
+
+  const generateNodes = (n: number) => {
+    const nodes: Position[] = [];
+    const newConnections: Connection[] = [];
+
+    for (let i = idCounter.current; i < n + idCounter.current; i++) {
+      const node: Position = {
+        id: i,
+        X: Math.floor(Math.random() * (990 - 10)) + 10,
+        Y: Math.floor(Math.random() * (592 - 10)) + 10
+      };
+      nodes.push(node);
+    }
+    idCounter.current += n;
+
+    nodes.forEach((node) => {
+      const distances = nodes.map((node2, j) => ({
+        index: node2.id,
+        distance: Math.hypot(node.X - node2.X, node.Y - node2.Y)
+      }));
+
+      distances.sort((a, b) => a.distance - b.distance)
+
+      const numNeighbours = Math.floor(Math.random() * 5) + 4
+
+      for (let k = 0; k < numNeighbours; k++) {
+        newConnections.push({ from: node.id, to: distances[k].index })
+        newConnections.push({ from: distances[k].index, to: node.id })
+      }
+    })
+
+    setPositions(nodes);
+    setConnections(newConnections);
+  }
 
   const handleAddNode = (e: MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const position = { id: idCounter, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10 }
-    setIdCounter(idCounter + 1)
+    const position = { id: idCounter.current, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10 }
     setPositions(positions.concat(position))
+    idCounter.current++;
   }
 
   const handleSignal = (e: MouseEvent) => {
@@ -44,6 +78,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
 
   const propagateSignal = async (id: number) => {
     const queue = [[id]];
+    let lastLevel = new Set<number>();
 
     while (queue.length) {
       const currentLevel = queue.shift() || [];
@@ -51,7 +86,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
 
       currentLevel.forEach(node => {
         const neighbours = connections
-          .filter(c => c.from === node)
+          .filter(c => c.from === node && !lastLevel.has(c.to))
           .map(c => c.to);
 
         nextLevel.push(...neighbours);
@@ -67,6 +102,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
         queue.push(nextLevel);
       }
 
+      lastLevel = new Set(currentLevel)
       await new Promise(resolve => setTimeout(resolve, 200));
     }
   };
@@ -98,7 +134,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
       setConnectingNode(null)
       return
     }
-    setConnections(connections.concat({ from: connectingNode, to: targetNodeKey }))
+    setConnections(connections.concat({ from: connectingNode, to: targetNodeKey }, { from: targetNodeKey, to: connectingNode }))
     setConnectingNode(null)
   }
 
@@ -123,51 +159,45 @@ const Graph = ({ mode = 'delete' }: IProps) => {
   }
 
   return (
-    <div
-      className="Container"
-      onDragEnter={(e: DragEvent) => e.preventDefault()}
-      onDragOver={handleDragOver}
-      onClick={handleAddNode}
-    >
-      {positions.map((position) =>
-        <GraphNode
-          key={position.id}
-          id={position.id}
-          X={position.X}
-          Y={position.Y}
-          firing={firingNodes.some(n => n === position.id)}
-          handleClick={mode === 'delete' ? handleDeleteNode : mode === 'connect' ? handleConnectNodes : handleSignal}
-          handleDragEnd={handleDragEnd}
-        />
-      )}
-      <svg viewBox='0 0 1000 602' xmlns="http://www.w3.org/2000/svg">
-        {connections.map((connection, i) => {
-          const position1 = positions.find((p) => p.id === connection.from)
-          const position2 = positions.find((p) => p.id === connection.to)
+    <div>
+      <div
+        className="Container"
+        onDragEnter={(e: DragEvent) => e.preventDefault()}
+        onDragOver={handleDragOver}
+        onClick={handleAddNode}
+      >
+        {positions.map((position) =>
+          <GraphNode
+            key={position.id}
+            id={position.id}
+            X={position.X}
+            Y={position.Y}
+            firing={firingNodes.some(n => n === position.id)}
+            handleClick={mode === 'delete' ? handleDeleteNode : mode === 'connect' ? handleConnectNodes : handleSignal}
+            handleDragEnd={handleDragEnd}
+          />
+        )}
+        <svg viewBox='0 0 1000 602' xmlns="http://www.w3.org/2000/svg">
+          {connections.map((connection, i) => {
+            const position1 = positions.find((p) => p.id === connection.from)
+            const position2 = positions.find((p) => p.id === connection.to)
 
-          if (position1 && position2) {
-            return (
-              <line
-                key={i}
-                x1={position1.X + 10}
-                x2={position2.X + 10}
-                y1={position1.Y + 10}
-                y2={position2.Y + 10}
-                stroke="black"
-              />
-            )
-          }
-        })}
-      </svg>
-      {/* <svg viewBox='0 0 1000 602' xmlns="http://www.w3.org/2000/svg">
-        <line
-          x1={positions[0].X + 10}
-          x2={positions[1].X + 10}
-          y1={positions[0].Y + 10}
-          y2={positions[1].Y + 10}
-          stroke="black"
-        />
-      </svg> */}
+            if (position1 && position2) {
+              return (
+                <line
+                  key={i}
+                  x1={position1.X + 10}
+                  x2={position2.X + 10}
+                  y1={position1.Y + 10}
+                  y2={position2.Y + 10}
+                  stroke="black"
+                />
+              )
+            }
+          })}
+        </svg>
+      </div>
+      <button onClick={() => generateNodes(30)}>Generate Nodes</button>
     </div>
   );
 };

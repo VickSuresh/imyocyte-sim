@@ -12,9 +12,7 @@ function App() {
 
   return (
     <div style={{ padding: "1rem" }}>
-      <div className="Container" >
-        <Graph mode={select as Mode} />
-      </div>
+      <Graph mode={select as Mode} />
       <select value={select} onChange={handleSelectChange}>
         <option value="delete">Delete</option>
         <option value="connect">Connect</option>
