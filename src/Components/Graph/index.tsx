@@ -79,7 +79,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
 
   const propagateSignal = async (id: number) => {
     const queue = [[id]];
-    const refractoryPeriod = 600;
+    const refractoryPeriod = 400;
 
     while (queue.length) {
       const currentLevel = queue.shift() || [];
@@ -108,7 +108,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
       await new Promise(resolve => setTimeout(resolve, 200));
 
       setFiringNodes(prevFiringNodes => prevFiringNodes.filter(n => !currentLevel.includes(n)));
-      //await new Promise(resolve => setTimeout(resolve, 200));
+      //await new Promise(resolve => setTimeout(resolve, 1));
 
       if (nextLevel.size) {
         queue.push(Array.from(nextLevel));
