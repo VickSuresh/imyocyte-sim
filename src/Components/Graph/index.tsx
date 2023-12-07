@@ -1,4 +1,3 @@
-
 import { DragEvent, MouseEvent, useRef, useState } from 'react';
 import GraphNode from '../GraphNode';
 import "./styles.css"
@@ -27,6 +26,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
   const [connections, setConnections] = useState<Connection[]>([])
   const [connectingNode, setConnectingNode] = useState<number | null>(null)
   const [firingNodes, setFiringNodes] = useState<number[]>([])
+  const lastFired = useRef<Map<number, number>>(new Map())
   const idCounter = useRef(0)
 
   const generateNodes = (n: number) => {
@@ -37,9 +37,10 @@ const Graph = ({ mode = 'delete' }: IProps) => {
       const node: Position = {
         id: i,
         X: Math.floor(Math.random() * (990 - 10)) + 10,
-        Y: Math.floor(Math.random() * (592 - 10)) + 10
+        Y: Math.floor(Math.random() * (592 - 10)) + 10,
       };
       nodes.push(node);
+      lastFired.current.set(i, 0)
     }
     idCounter.current += n;
 
@@ -65,7 +66,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
 
   const handleAddNode = (e: MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const position = { id: idCounter.current, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10 }
+    const position = { id: idCounter.current, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10, lastFired: 0 }
     setPositions(positions.concat(position))
     idCounter.current++;
   }
@@ -78,32 +79,40 @@ const Graph = ({ mode = 'delete' }: IProps) => {
 
   const propagateSignal = async (id: number) => {
     const queue = [[id]];
-    let lastLevel = new Set<number>();
+    const refractoryPeriod = 600;
 
     while (queue.length) {
       const currentLevel = queue.shift() || [];
-      const nextLevel: number[] = [];
+      const nextLevel: Set<number> = new Set();
+      const time = Date.now()
+
+      currentLevel.forEach(node => {
+        lastFired.current.set(node, time)
+      })
 
       currentLevel.forEach(node => {
         const neighbours = connections
-          .filter(c => c.from === node && !lastLevel.has(c.to))
-          .map(c => c.to);
+          .filter(c => c.from === node)
+          .map(c => c.to)
+          .filter(neighbour => {
+            const nodeLastFired = lastFired.current.get(neighbour) || 0
+            return time > nodeLastFired + refractoryPeriod
+          });
 
-        nextLevel.push(...neighbours);
+        if (Math.random() < 1) {
+          neighbours.forEach(nextLevel.add, nextLevel)
+        }
       });
 
       setFiringNodes(prevFiringNodes => [...prevFiringNodes, ...currentLevel]);
-
       await new Promise(resolve => setTimeout(resolve, 200));
 
       setFiringNodes(prevFiringNodes => prevFiringNodes.filter(n => !currentLevel.includes(n)));
+      //await new Promise(resolve => setTimeout(resolve, 200));
 
-      if (nextLevel.length) {
-        queue.push(nextLevel);
+      if (nextLevel.size) {
+        queue.push(Array.from(nextLevel));
       }
-
-      lastLevel = new Set(currentLevel)
-      await new Promise(resolve => setTimeout(resolve, 200));
     }
   };
 
@@ -150,7 +159,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
     ) {
       const newPositions = positions.map((p) => {
         if (p.id === targetNodeKey) {
-          return { id: p.id, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10 }
+          return { id: p.id, X: e.pageX - rect.left - 10, Y: e.pageY - rect.top - 10, lastFired: 0 }
         }
         return p
       })
@@ -197,7 +206,7 @@ const Graph = ({ mode = 'delete' }: IProps) => {
           })}
         </svg>
       </div>
-      <button onClick={() => generateNodes(30)}>Generate Nodes</button>
+      <button onClick={() => generateNodes(100)}>Generate Nodes</button>
     </div>
   );
 };
